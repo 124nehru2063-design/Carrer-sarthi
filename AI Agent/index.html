@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Aura – Your Career & Education Advisor</title>
+    <style>
+      body {
+        font: 16px/1.4 system-ui, sans-serif;
+        padding: 2rem;
+        background-color: #f4f7f9;
+        color: #333;
+      }
+      h1 {
+        color: #005a9c;
+      }
+      #log {
+        white-space: pre-wrap;
+        margin-top: 1rem;
+        background-color: #fff;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 1rem;
+        min-height: 100px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+      }
+      button {
+        font-size: 1.2rem;
+        padding: 0.6rem 1rem;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Your Personal Career & Education Advisor</h1>
+    <button id="talkBtn">🎤 Talk to Aura</button>
+    <div id="log"></div>
+    <audio id="audio"></audio>
+
+    <script type="module">
+      // --- IMPORTANT SECURITY WARNING ---
+      // Do NOT hardcode your API keys in the browser like this in a real application.
+      // Anyone can view them. Use a backend server to protect your keys.
+      // For this personal project, replace the placeholders below.
+      const GEMINI_KEY = "AIzaSyCHjP3JC9bIveec7y6EoVN6xfF02UByoTQ"; // <-- REPLACE WITH YOUR KEY
+      const OPENAI_KEY = "YOUR_OPENAI_API_KEY"; // <-- REPLACE WITH YOUR KEY
+
+      const log = (...args) =>
+        (document.getElementById("log").textContent += args.join(" ") + "\n");
+      const $audio = document.getElementById("audio");
+
+      // Speech-to-text
+      const SpeechRecognition =
+        window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        log("❌ This browser does not support Web Speech API.");
+        throw new Error("SpeechRecognition unsupported");
+      }
+
+      const recognizer = new SpeechRecognition();
+      recognizer.continuous = false;
+      recognizer.interimResults = false;
+      recognizer.lang = "en-IN"; // Set to Indian English for better accuracy if needed
+      recognizer.maxAlternatives = 1;
+
+      document.getElementById("talkBtn").addEventListener("click", () => {
+        recognizer.start();
+      });
+
+      recognizer.onstart = () => log("🎙️ Listening …");
+      recognizer.onerror = (e) => log("⚠️ Speech error:", e.error);
+      recognizer.onresult = async (e) => {
+        const transcript = e.results[0][0].transcript;
+        log(`🗣️ You said: “${transcript}”`);
+
+        try {
+          const replyText = await askGemini(transcript);
+          log(`🤖 Aura: ${replyText}`);
+          await speakWithOpenAI(replyText);
+        } catch (err) {
+          log("❌ API error:", err.message);
+        }
+      };
+
+      // NEW: Checks for career and education-related topics
+      function isCareerEdRelated(text) {
+        const keywords = [
+          // General Career
+          "career", "job", "profession", "work", "employment", "occupation",
+          "resume", "cv", "cover letter", "interview", "salary", "promotion",
+          "career path", "career change", "job search", "networking",
+
+          // Education
+          "education", "college", "university", "school", "degree", "course",
+          "major", "minor", "study", "learn", "student", "admission",
+          "scholarship", "exam", "test", "grade", "gpa", "master's", "phd",
+
+          // Skills & Development
+          "skill", "upskill", "training", "certification", "online course",
+          "workshop", "personal development", "soft skills", "hard skills",
+
+          // Fields & Industries
+          "engineering", "medicine", "doctor", "arts", "commerce", "law",
+          "technology", "it", "data science", "ai", "marketing", "finance",
+          "management", "business", "design", "research", "science",
+
+          // Decision Making & Guidance
+          "what should I do", "which field", "what to study", "future scope",
+          "job outlook", "career advice", "guidance", "counseling",
+          "after 10th", "after 12th", "after graduation"
+        ];
+
+        const lower = text.toLowerCase();
+        return keywords.some((word) => lower.includes(word));
+      }
+
+      // Ask Gemini
+      async function askGemini(text) {
+        if (!isCareerEdRelated(text)) {
+          return "Sorry, I can only help with career and education topics. 😊 Feel free to ask me about choosing a course, preparing for an interview, or exploring job options!";
+        }
+        
+        // The new system prompt that defines the AI's persona
+        const systemInstruction = {
+          parts: [
+            {
+              text: "You are an AI Career & Education Advisor named Aura. Your role is to provide personalized, encouraging, and practical guidance to students. Be friendly, empathetic, and knowledgeable. Ask clarifying questions to understand the user's background, interests, and goals before giving advice. Keep your answers concise and clear. Sprinkle in light emojis to maintain a warm tone.",
+            },
+          ],
+        };
+
+        const contents = [{ parts: [{ text }] }];
+
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents, system_instruction: systemInstruction }),
+          }
+        );
+
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(`Gemini API Error: ${error.error.message}`);
+        }
+
+        const data = await res.json();
+        if (!data.candidates?.length)
+          throw new Error("Gemini returned no candidates");
+        return data.candidates[0].content.parts[0].text.trim();
+      }
+
+      // Text-to-speech with OpenAI
+      async function speakWithOpenAI(text) {
+        if (!OPENAI_KEY || OPENAI_KEY === "YOUR_OPENAI_API_KEY") {
+            log("⚠️ OpenAI key not set. Skipping audio playback.");
+            return;
+        }
+
+        const res = await fetch("https://api.openai.com/v1/audio/speech", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${OPENAI_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "tts-1",
+            input: text,
+            voice: "nova",
+            response_format: "mp3", // Use response_format for clarity
+          }),
+        });
+
+        if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`);
+        const blob = await res.blob();
+        $audio.src = URL.createObjectURL(blob);
+        await $audio.play();
+      }
+    </script>
+  </body>
+</html>
