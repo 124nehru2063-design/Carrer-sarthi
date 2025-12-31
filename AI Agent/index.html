@@ -184,6 +184,12 @@
         $audio.src = URL.createObjectURL(blob);
         await $audio.play();
       }
+      const cors = require("cors");
+
+app.use(cors({
+  origin: "https://carrer-sarthi.vercel.app"
+}));
+
     </script>
   </body>
 </html>

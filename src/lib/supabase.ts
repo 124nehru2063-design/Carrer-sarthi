@@ -9,5 +9,12 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
+// src/services/taskService.ts
+const API_URL = import.meta.env.VITE_API_URL;
+
+export const getTasks = async () => {
+  const res = await fetch(`${API_URL}/api/tasks`);
+  return res.json();
+};
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

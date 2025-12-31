@@ -82,3 +82,9 @@ if (!SpeechRecognition) {
 {
   /* <audio id="audio"></audio>; */
 }
+const cors = require("cors");
+
+app.use(cors({
+  origin: "https://carrer-sarthi.vercel.app" // frontend URL
+}));
+
